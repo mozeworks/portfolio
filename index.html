@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Jeremy Moseley | Portfolio</title>
+<style>
+:root{--bg:#0d0a14;--panel:#17121f;--line:#2b2238;--fg:#f4f1fa;--dim:#a99dc0;--accent:#b98cf0}
+*{box-sizing:border-box;margin:0}
+body{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(900px 500px at 90% -10%,rgba(139,63,217,.25),transparent 60%),var(--bg);color:var(--fg);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Inter","Helvetica Neue",sans-serif}
+.card{width:100%;max-width:380px;padding:32px;background:var(--panel);border:1px solid var(--line);border-radius:16px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.16em;font-size:13px}
+.badge{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#b45cf0,#6a2bb8);display:grid;place-items:center;font-size:14px;letter-spacing:0;font-weight:800}
+h1{margin-top:22px;font-size:22px;letter-spacing:-.01em}
+p{margin-top:6px;color:var(--dim);font-size:14px}
+form{margin-top:20px;display:flex;flex-direction:column;gap:10px}
+input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#0f0b17;color:var(--fg);font:inherit}
+input:focus{outline:2px solid var(--accent);outline-offset:1px}
+button{padding:12px 14px;border-radius:10px;border:0;background:var(--fg);color:#14101d;font:inherit;font-weight:600;cursor:pointer}
+button[disabled]{opacity:.6;cursor:default}
+.err{min-height:20px;margin-top:2px;color:#ff8da1;font-size:13px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand"><div class="badge">M</div>MOZE WORKS</div>
+  <h1>Portfolio</h1>
+  <p>Enter the password you were given to view Jeremy Moseley's work.</p>
+  <form id="f"><input id="pw" type="password" placeholder="Password" autocomplete="current-password" autofocus><button id="go" type="submit">View portfolio</button><div class="err" id="err" role="alert"></div></form>
+</div>
+<script>
+(()=>{
+const SALT="xJNen+dfPVN0J1Lb9xgg2w==",ITER=310000;
+const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function derive(pw){
+  const base=await crypto.subtle.importKey("raw",new TextEncoder().encode(pw),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2",salt:b64(SALT),iterations:ITER,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["decrypt"]);
+}
+async function dec(key,buf){const u=new Uint8Array(buf);return crypto.subtle.decrypt({name:"AES-GCM",iv:u.slice(0,12)},key,u.slice(12))}
+async function unlock(pw){
+  const key=await derive(pw);
+  const app=JSON.parse(new TextDecoder().decode(await dec(key,await (await fetch("app.bin")).arrayBuffer())));
+  const cache=new Map();
+  window.ASSET=p=>{
+    if(cache.has(p))return cache.get(p);
+    const m=app.manifest[p];if(!m)return p;
+    const pr=fetch("a/"+m.f).then(r=>r.arrayBuffer()).then(b=>dec(key,b)).then(d=>URL.createObjectURL(new Blob([d],{type:m.t})));
+    cache.set(p,pr);return pr;
+  };
+  document.open();document.write(app.html);document.close();
+}
+const f=document.getElementById("f"),pw=document.getElementById("pw"),go=document.getElementById("go"),err=document.getElementById("err");
+async function attempt(v){
+  go.disabled=true;go.textContent="Unlocking...";err.textContent="";
+  try{await unlock(v)}catch(e){err.textContent="That password didn't work. Please try again.";go.disabled=false;go.textContent="View portfolio";pw.select()}
+}
+f.addEventListener("submit",e=>{e.preventDefault();if(pw.value)attempt(pw.value)});
+// one-click link: #pw=passphrase unlocks automatically (the fragment is never sent to the server)
+const m=location.hash.match(/pw=([^&]+)/);
+if(m){const v=decodeURIComponent(m[1]);history.replaceState(null,"",location.pathname+location.search);attempt(v)}
+})();
+</script>
+</body>
+</html>
